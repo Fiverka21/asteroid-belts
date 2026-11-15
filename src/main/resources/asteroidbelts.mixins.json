@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "asteroid.belts.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LightEngineMixin",
+    "ChunkSkyLightSourcesMixin",
+    "LightEngineAccessor",
+    "SkyLightEngineMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

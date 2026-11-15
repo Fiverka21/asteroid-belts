@@ -22,10 +22,6 @@ public final class AsteroidConfig {
         public final ModConfigSpec.IntValue beltCenterY;
         public final ModConfigSpec.IntValue beltHalfHeight;
         public final ModConfigSpec.DoubleValue beltConcentration;
-        public final ModConfigSpec.IntValue ringRadius;
-        public final ModConfigSpec.IntValue ringSpacing;
-        public final ModConfigSpec.IntValue ringHalfWidth;
-        public final ModConfigSpec.DoubleValue ringConcentration;
         public final ModConfigSpec.IntValue minimumDiameter;
         public final ModConfigSpec.IntValue maximumDiameter;
         public final ModConfigSpec.DoubleValue iceAsteroidChance;
@@ -40,30 +36,17 @@ public final class AsteroidConfig {
             asteroidsPerChunk = builder
                     .comment("Average number of asteroid centers selected per source chunk.",
                             "Set to 0 to disable asteroid generation.")
-                    .defineInRange("asteroids_per_chunk", 20.0D, 0.0D, 32.0D);
+                    .defineInRange("asteroids_per_chunk", 0.015D, 0.0D, 4.0D);
             beltCenterY = builder
                     .comment("The Y coordinate at the center of the asteroid belt.")
                     .defineInRange("belt_center_y", 512, -2032, 2032);
             beltHalfHeight = builder
                     .comment("How far the belt extends above and below its center.")
-                    .defineInRange("belt_half_height", 256, 0, 1024);
+                    .defineInRange("belt_half_height", 200, 0, 1024);
             beltConcentration = builder
                     .comment("How strongly asteroid centers favor the belt center.",
-                            "1.0 is a mild falloff; higher values make the belt thinner and denser in the middle.")
-                    .defineInRange("belt_concentration", 3.0D, 1.0D, 8.0D);
-            ringRadius = builder
-                    .comment("Radius of the first circular asteroid belt from the world origin, in blocks.")
-                    .defineInRange("ring_radius", 1024, 0, 30000000);
-            ringSpacing = builder
-                    .comment("Distance between repeated circular asteroid belts.")
-                    .defineInRange("ring_spacing", 1024, 1, 4096);
-            ringHalfWidth = builder
-                    .comment("How far each circular belt extends inward and outward from its radius.")
-                    .defineInRange("ring_half_width", 256, 1, 4096);
-            ringConcentration = builder
-                    .comment("How strongly asteroid centers favor the middle of the circular belt.",
-                            "Higher values make the circular belt edges less populated.")
-                    .defineInRange("ring_concentration", 3.0D, 1.0D, 8.0D);
+                            "1.0 gives a gradual triangular falloff; higher values make the belt thinner and denser in the middle.")
+                    .defineInRange("belt_concentration", 2.0D, 1.0D, 8.0D);
             minimumDiameter = builder
                     .comment("Minimum asteroid diameter in blocks.")
                     .defineInRange("minimum_diameter", 10, 2, 100);

@@ -6,7 +6,7 @@ NeoForge 1.21.1 mod that raises the overworld build limit to Y=1024 and adds a c
 
 Asteroids generate around Y=512, extending 256 blocks above and below the belt center. Their density falls toward the belt edges, and each asteroid is deterministic from the world seed so nearby chunks line up. Asteroid diameters range from 10 to 100 blocks by default.
 
-By default, asteroids are also restricted to repeated circular belts centered on the world origin. The first ring starts at radius 1024 and another ring appears every 1024 blocks. Ring radius, spacing, width, edge concentration, and asteroid rate can be changed in the server config.
+Asteroid centers are roughly uniform across X/Z, without radial rings. Vertically, the density is highest at Y=512 and gradually falls off across 200 blocks above and below it. The vertical concentration and asteroid rate can be changed in the server config.
 
 Asteroids use biome-specific materials when configured, with weighted stone-like fallback materials. Resource blocks can be embedded using configurable per-block amounts. A small percentage of asteroids are made entirely from one selected ice material.
 
