@@ -37,7 +37,7 @@ public final class AsteroidConfig {
             asteroidsPerChunk = builder
                     .comment("Average number of asteroid centers selected per source chunk.",
                             "Set to 0 to disable asteroid generation.")
-                    .defineInRange("asteroids_per_chunk", 0.015D, 0.0D, 4.0D);
+                    .defineInRange("asteroids_per_chunk", 0.02D, 0.0D, 4.0D);
             beltCenterY = builder
                     .comment("The Y coordinate at the center of the asteroid belt.")
                     .defineInRange("belt_center_y", 512, -2032, 2032);
