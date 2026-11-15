@@ -25,6 +25,7 @@ public final class AsteroidConfig {
         public final ModConfigSpec.IntValue minimumDiameter;
         public final ModConfigSpec.IntValue maximumDiameter;
         public final ModConfigSpec.DoubleValue iceAsteroidChance;
+        public final ModConfigSpec.DoubleValue caveAsteroidChance;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidMaterials;
         public final ModConfigSpec.ConfigValue<List<? extends String>> biomeMaterials;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidResources;
@@ -56,6 +57,9 @@ public final class AsteroidConfig {
             iceAsteroidChance = builder
                     .comment("Chance that a generated asteroid is made entirely from an ice material.")
                     .defineInRange("ice_asteroid_chance", 0.025D, 0.0D, 1.0D);
+            caveAsteroidChance = builder
+                    .comment("Chance that a generated asteroid contains one or more cave-like tunnels.")
+                    .defineInRange("cave_asteroid_chance", 0.20D, 0.0D, 1.0D);
 
             asteroidMaterials = builder
                     .comment("Weighted fallback materials in the form block_id=weight.",
