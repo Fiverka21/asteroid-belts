@@ -1,0 +1,23 @@
+{
+  "feature": "asteroidbelts:asteroid_belt",
+  "placement": [
+    {
+      "type": "minecraft:in_square"
+    },
+    {
+      "type": "minecraft:height_range",
+      "height": {
+        "type": "minecraft:uniform",
+        "max_inclusive": {
+          "absolute": 512
+        },
+        "min_inclusive": {
+          "absolute": 512
+        }
+      }
+    },
+    {
+      "type": "minecraft:biome"
+    }
+  ]
+}
