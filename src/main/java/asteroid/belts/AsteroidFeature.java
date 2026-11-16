@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
@@ -28,6 +29,7 @@ import net.minecraft.world.level.levelgen.synth.NormalNoise;
 
 public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
     private static final int CHUNK_SIZE = 16;
+    private static final int VOID_FLOOR_Y = 300;
 
     public AsteroidFeature(Codec<NoneFeatureConfiguration> codec) {
         super(codec);
@@ -67,7 +69,8 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
 
                 for (int slot = 0; slot < asteroidSlots; slot++) {
                     Asteroid asteroid = createAsteroid(level, context.chunkGenerator(), settings, random, sourceX, sourceZ);
-                    if (asteroid != null && !asteroid.coversHorizontal(spawnPosition.getX(), spawnPosition.getZ())
+                    if (asteroid != null && (settings.voidBelowAsteroids
+                            || !asteroid.coversHorizontal(spawnPosition.getX(), spawnPosition.getZ()))
                             && asteroid.intersects(chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, maximumRadius)) {
                         placed |= placeAsteroid(level, settings, asteroid, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ);
                     }
@@ -78,6 +81,25 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         return placed;
     }
 
+    public static void clearBelowAsteroids(ChunkAccess chunk) {
+        int chunkMinX = chunk.getPos().getMinBlockX();
+        int chunkMaxX = chunk.getPos().getMaxBlockX();
+        int chunkMinZ = chunk.getPos().getMinBlockZ();
+        int chunkMaxZ = chunk.getPos().getMaxBlockZ();
+        int maximumY = Math.min(chunk.getMaxBuildHeight() - 1, VOID_FLOOR_Y - 1);
+        BlockPos.MutableBlockPos position = new BlockPos.MutableBlockPos();
+        for (int x = chunkMinX; x <= chunkMaxX; x++) {
+            for (int y = chunk.getMinBuildHeight(); y <= maximumY; y++) {
+                for (int z = chunkMinZ; z <= chunkMaxZ; z++) {
+                    position.set(x, y, z);
+                    if (!chunk.getBlockState(position).isAir()) {
+                        chunk.setBlockState(position, Blocks.AIR.defaultBlockState(), false);
+                    }
+                }
+            }
+        }
+    }
+
     private static Asteroid createAsteroid(WorldGenLevel level, ChunkGenerator chunkGenerator, Settings settings,
             RandomSource random, int sourceX, int sourceZ) {
         int centerX = sourceX * CHUNK_SIZE + random.nextInt(CHUNK_SIZE);
@@ -86,6 +108,10 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         double beltOffset = random.nextDouble() - random.nextDouble();
         beltOffset = Math.copySign(Math.pow(Math.abs(beltOffset), settings.beltConcentration), beltOffset);
         int centerY = settings.beltCenterY + (int) Math.round(beltOffset * settings.beltHalfHeight);
+        BlockPos center = new BlockPos(centerX, centerY, centerZ);
+        if (settings.excludedBiomes.contains(biomeIdAt(level, chunkGenerator, center))) {
+            return null;
+        }
         long asteroidSeed = seedFor(level.getSeed(), sourceX, sourceZ, random.nextInt());
         RandomSource asteroidRandom = RandomSource.create(asteroidSeed);
         RandomSource shapeRandom = RandomSource.create(seedFor(asteroidSeed, 17L, 31L, 47L));
@@ -110,7 +136,7 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         boolean ice = asteroidRandom.nextDouble() < settings.iceAsteroidChance;
         MaterialChoice material = ice
                 ? new MaterialChoice(chooseWeighted(settings.iceMaterials, asteroidRandom, Blocks.ICE.defaultBlockState()), false)
-                : chooseBiomeMaterial(level, chunkGenerator, settings, new BlockPos(centerX, centerY, centerZ), asteroidRandom);
+                : chooseBiomeMaterial(level, chunkGenerator, settings, center, asteroidRandom);
         int minimumDiameter = settings.minimumDiameter;
         int maximumDiameter = settings.maximumDiameter;
         if (material.biomeSpecific && Settings.isAmplified(chunkGenerator)) {
@@ -211,10 +237,7 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
 
     private static MaterialChoice chooseBiomeMaterial(WorldGenLevel level, ChunkGenerator chunkGenerator, Settings settings,
             BlockPos center, RandomSource random) {
-        RandomState randomState = level.getLevel().getChunkSource().randomState();
-        Holder<Biome> biome = chunkGenerator.getBiomeSource().getNoiseBiome(
-                QuartPos.fromBlock(center.getX()), QuartPos.fromBlock(center.getY()), QuartPos.fromBlock(center.getZ()), randomState.sampler());
-        String biomeId = biome.unwrapKey().map(key -> key.location().toString()).orElse("");
+        String biomeId = biomeIdAt(level, chunkGenerator, center);
         BiomeMaterial fallback = null;
         for (BiomeMaterial override : settings.biomeMaterials) {
             if (override.biomeId.equals(biomeId)) {
@@ -228,6 +251,13 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             return new MaterialChoice(fallback.block.defaultBlockState(), true);
         }
         return new MaterialChoice(chooseWeighted(settings.materials, random, Blocks.STONE.defaultBlockState()), false);
+    }
+
+    private static String biomeIdAt(WorldGenLevel level, ChunkGenerator chunkGenerator, BlockPos center) {
+        RandomState randomState = level.getLevel().getChunkSource().randomState();
+        Holder<Biome> biome = chunkGenerator.getBiomeSource().getNoiseBiome(
+                QuartPos.fromBlock(center.getX()), QuartPos.fromBlock(center.getY()), QuartPos.fromBlock(center.getZ()), randomState.sampler());
+        return biome.unwrapKey().map(key -> key.location().toString()).orElse("");
     }
 
     private static boolean placeAsteroid(WorldGenLevel level, Settings settings, Asteroid asteroid,
@@ -470,15 +500,18 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         private final int maximumDiameter;
         private final double iceAsteroidChance;
         private final double caveAsteroidChance;
+        private final boolean voidBelowAsteroids;
         private final List<WeightedBlock> materials;
         private final List<BiomeMaterial> biomeMaterials;
+        private final List<String> excludedBiomes;
         private final List<ResourceRule> resources;
         private final List<WeightedBlock> iceMaterials;
 
         private Settings(double asteroidsPerChunk, int beltCenterY, int beltHalfHeight, double beltConcentration,
                 int minimumDiameter,
-                int maximumDiameter, double iceAsteroidChance, double caveAsteroidChance,
-                List<WeightedBlock> materials, List<BiomeMaterial> biomeMaterials, List<ResourceRule> resources,
+                int maximumDiameter, double iceAsteroidChance, double caveAsteroidChance, boolean voidBelowAsteroids,
+                List<WeightedBlock> materials, List<BiomeMaterial> biomeMaterials, List<String> excludedBiomes,
+                List<ResourceRule> resources,
                 List<WeightedBlock> iceMaterials) {
             this.asteroidsPerChunk = asteroidsPerChunk;
             this.beltCenterY = beltCenterY;
@@ -488,8 +521,10 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             this.maximumDiameter = maximumDiameter;
             this.iceAsteroidChance = iceAsteroidChance;
             this.caveAsteroidChance = caveAsteroidChance;
+            this.voidBelowAsteroids = voidBelowAsteroids;
             this.materials = materials;
             this.biomeMaterials = biomeMaterials;
+            this.excludedBiomes = excludedBiomes;
             this.resources = resources;
             this.iceMaterials = iceMaterials;
         }
@@ -501,9 +536,20 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             return new Settings(config.asteroidsPerChunk.get(), config.beltCenterY.get(), config.beltHalfHeight.get(),
                     config.beltConcentration.get(),
                     minimumDiameter, maximumDiameter, config.iceAsteroidChance.get(),
-                    config.caveAsteroidChance.get(),
+                    config.caveAsteroidChance.get(), config.voidBelowAsteroids.get(),
                     parseWeighted(config.asteroidMaterials.get()), parseBiomeMaterials(config.biomeMaterials.get()),
+                    parseBiomeIds(config.excludedBiomes.get()),
                     parseResources(config.asteroidResources.get()), parseWeighted(config.iceMaterials.get()));
+        }
+
+        private static List<String> parseBiomeIds(List<? extends String> entries) {
+            List<String> parsed = new ArrayList<>();
+            for (String entry : entries) {
+                if (entry != null && !entry.isBlank()) {
+                    parsed.add(entry.trim());
+                }
+            }
+            return parsed;
         }
 
         private static boolean isAmplified(ChunkGenerator chunkGenerator) {

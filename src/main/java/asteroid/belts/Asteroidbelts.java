@@ -8,6 +8,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConfiguration;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.minecraft.server.level.ServerLevel;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.config.ModConfig;
@@ -30,5 +33,14 @@ public class Asteroidbelts {
     public Asteroidbelts(IEventBus modEventBus, ModContainer modContainer) {
         FEATURES.register(modEventBus);
         modContainer.registerConfig(ModConfig.Type.SERVER, AsteroidConfig.SERVER_SPEC);
+        NeoForge.EVENT_BUS.addListener(Asteroidbelts::onChunkLoad);
+    }
+
+    private static void onChunkLoad(ChunkEvent.Load event) {
+        if (event.getLevel() instanceof ServerLevel level
+                && level.dimension() == net.minecraft.world.level.Level.OVERWORLD
+                && AsteroidConfig.SERVER.voidBelowAsteroids.get()) {
+            AsteroidFeature.clearBelowAsteroids(event.getChunk());
+        }
     }
 }

@@ -8,6 +8,8 @@ Asteroids generate around Y=1024, extending 256 blocks above and below the belt 
 
 Asteroid centers are roughly uniform across X/Z, without radial rings. Vertically, the density is highest at Y=1024 and gradually falls off across 200 blocks above and below it. The vertical concentration and asteroid rate can be changed in the server config.
 
+The world spawn column is kept clear of asteroids so the initial spawn cannot be inside one. Set `void_below_asteroids = true` to clear all blocks below Y=300; this also allows an asteroid to occupy the spawn area.
+
 Asteroids use biome-specific materials when configured, with weighted stone-like fallback materials. Resource blocks can be embedded using a separate chance and Y range list for each block. A small percentage of asteroids are made entirely from one selected ice material.
 
 The server config is created at `config/asteroidbelts-server.toml` after the first launch. Material entries use `block_id=weight`, resource entries use `block_id=chance;y_min..y_max,y_min..y_max`, and biome materials use one `biome_id=block_id` entry per line. A `*=block_id` entry supplies the fallback for modded biomes. Block IDs can refer to blocks from other mods. Y ranges are inclusive, and each resource entry can have different ranges. For example:
@@ -21,4 +23,5 @@ biome_materials = [
     "minecraft:stony_peaks=minecraft:granite",
     "*=minecraft:stone"
 ]
+asteroid_excluded_biomes = ["minecraft:deep_dark", "minecraft:lush_caves"]
 ```

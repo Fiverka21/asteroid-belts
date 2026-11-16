@@ -26,8 +26,10 @@ public final class AsteroidConfig {
         public final ModConfigSpec.IntValue maximumDiameter;
         public final ModConfigSpec.DoubleValue iceAsteroidChance;
         public final ModConfigSpec.DoubleValue caveAsteroidChance;
+        public final ModConfigSpec.BooleanValue voidBelowAsteroids;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidMaterials;
         public final ModConfigSpec.ConfigValue<List<? extends String>> biomeMaterials;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> excludedBiomes;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidResources;
         public final ModConfigSpec.ConfigValue<List<? extends String>> iceMaterials;
 
@@ -60,6 +62,10 @@ public final class AsteroidConfig {
             caveAsteroidChance = builder
                     .comment("Chance that a generated asteroid contains one or more cave-like tunnels.")
                     .defineInRange("cave_asteroid_chance", 0.20D, 0.0D, 1.0D);
+            voidBelowAsteroids = builder
+                    .comment("Clear all blocks below Y=300.",
+                            "When enabled, the world spawn may be inside an asteroid.")
+                    .define("void_below_asteroids", false);
 
             asteroidMaterials = builder
                     .comment("Weighted fallback materials in the form block_id=weight.",
@@ -130,6 +136,13 @@ public final class AsteroidConfig {
                                     "*=minecraft:stone"),
                             () -> "*=minecraft:stone",
                             AsteroidConfig::isBiomeBlockEntry);
+            excludedBiomes = builder
+                    .comment("Biomes where asteroids should not generate, one biome ID per entry.",
+                            "Biome IDs may come from other mods.")
+                    .defineList("asteroid_excluded_biomes",
+                            List.of(),
+                            () -> "minecraft:example_biome",
+                            AsteroidConfig::isBiomeId);
             asteroidResources = builder
                     .comment("Optional resource blocks in the form block_id=amount;y_min..y_max,y_min..y_max.",
                             "Amount is the chance per asteroid block, from 0.0 to 1.0.",
@@ -196,6 +209,10 @@ public final class AsteroidConfig {
     private static boolean isBiomeBlockEntry(Object value) {
         String[] parts = splitEntry(value);
         return parts != null && !parts[0].isBlank() && !parts[1].isBlank();
+    }
+
+    private static boolean isBiomeId(Object value) {
+        return value instanceof String entry && !entry.isBlank();
     }
 
     private static String[] splitEntry(Object value) {
