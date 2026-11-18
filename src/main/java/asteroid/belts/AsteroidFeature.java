@@ -43,7 +43,8 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         }
 
         Settings settings = Settings.read(context.chunkGenerator());
-        if (settings.asteroidsPerChunk <= 0.0D || settings.materials.isEmpty()) {
+        if (settings.asteroidsPerChunk <= 0.0D
+                || (settings.materials.isEmpty() && settings.additionalAsteroidTypes.isEmpty())) {
             return false;
         }
 
@@ -109,32 +110,36 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         beltOffset = Math.copySign(Math.pow(Math.abs(beltOffset), settings.beltConcentration), beltOffset);
         int centerY = settings.beltCenterY + (int) Math.round(beltOffset * settings.beltHalfHeight);
         BlockPos center = new BlockPos(centerX, centerY, centerZ);
-        if (settings.excludedBiomes.contains(biomeIdAt(level, chunkGenerator, center))) {
-            return null;
-        }
         long asteroidSeed = seedFor(level.getSeed(), sourceX, sourceZ, random.nextInt());
         RandomSource asteroidRandom = RandomSource.create(asteroidSeed);
+        MaterialChoice additionalMaterial = chooseAdditionalMaterial(settings.additionalAsteroidTypes, asteroidRandom);
+        if (additionalMaterial == null && settings.excludedBiomes.contains(biomeIdAt(level, chunkGenerator, center))) {
+            return null;
+        }
         RandomSource shapeRandom = RandomSource.create(seedFor(asteroidSeed, 17L, 31L, 47L));
         NormalNoise macroNoise = NormalNoise.create(
                 RandomSource.create(seedFor(asteroidSeed, 101L, 211L, 307L)), -2, 1.0D, 0.5D, 0.25D);
         NormalNoise detailNoise = NormalNoise.create(
                 RandomSource.create(seedFor(asteroidSeed, 401L, 503L, 601L)), -4, 1.0D, 0.5D, 0.25D);
-        double skewXY = signedSkew(shapeRandom);
-        double skewXZ = signedSkew(shapeRandom);
-        double skewYX = signedSkew(shapeRandom);
-        double skewYZ = signedSkew(shapeRandom);
-        double skewZX = signedSkew(shapeRandom);
-        double skewZY = signedSkew(shapeRandom);
-        double centerBiasX = signedSkew(shapeRandom) * 0.9D;
-        double centerBiasY = signedSkew(shapeRandom) * 0.9D;
-        double centerBiasZ = signedSkew(shapeRandom) * 0.9D;
+        boolean irregular = settings.shape == AsteroidShape.IRREGULAR;
+        double skewXY = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double skewXZ = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double skewYX = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double skewYZ = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double skewZX = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double skewZY = irregular ? signedSkew(shapeRandom) : 0.0D;
+        double centerBiasX = irregular ? signedSkew(shapeRandom) * 0.9D : 0.0D;
+        double centerBiasY = irregular ? signedSkew(shapeRandom) * 0.9D : 0.0D;
+        double centerBiasZ = irregular ? signedSkew(shapeRandom) * 0.9D : 0.0D;
         RandomSource tunnelRandom = RandomSource.create(seedFor(asteroidSeed, 701L, 809L, 907L));
         Tunnel[] tunnels = createTunnels(asteroidSeed, tunnelRandom,
                 asteroidRandom.nextDouble() < settings.caveAsteroidChance);
         RandomSource craterRandom = RandomSource.create(seedFor(asteroidSeed, 1103L, 1201L, 1301L));
-        Crater[] craters = createCraters(craterRandom);
-        boolean ice = asteroidRandom.nextDouble() < settings.iceAsteroidChance;
-        MaterialChoice material = ice
+        Crater[] craters = irregular ? createCraters(craterRandom) : new Crater[0];
+        boolean ice = additionalMaterial == null && asteroidRandom.nextDouble() < settings.iceAsteroidChance;
+        MaterialChoice material = additionalMaterial != null
+                ? additionalMaterial
+                : ice
                 ? new MaterialChoice(chooseWeighted(settings.iceMaterials, asteroidRandom, Blocks.ICE.defaultBlockState()), false)
                 : chooseBiomeMaterial(level, chunkGenerator, settings, center, asteroidRandom);
         int minimumDiameter = settings.minimumDiameter;
@@ -146,10 +151,11 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         int diameterRange = maximumDiameter - minimumDiameter + 1;
         int diameter = minimumDiameter + (int) Math.floor(Math.pow(diameterRoll, 2.0D) * diameterRange);
         int radius = Math.max(1, diameter / 2);
-        int radiusX = variedRadius(radius, shapeRandom);
-        int radiusY = variedRadius(radius, shapeRandom);
-        int radiusZ = variedRadius(radius, shapeRandom);
-        return new Asteroid(centerX, centerY, centerZ, radius, radiusX, radiusY, radiusZ, asteroidSeed, material.block, ice,
+        int radiusX = settings.shape == AsteroidShape.SPHERE ? radius : variedRadius(radius, shapeRandom);
+        int radiusY = settings.shape == AsteroidShape.SPHERE ? radius : variedRadius(radius, shapeRandom);
+        int radiusZ = settings.shape == AsteroidShape.SPHERE ? radius : variedRadius(radius, shapeRandom);
+        return new Asteroid(centerX, centerY, centerZ, radius, radiusX, radiusY, radiusZ, asteroidSeed, material.block,
+                ice, settings.shape,
                 macroNoise, detailNoise, skewXY, skewXZ, skewYX, skewYZ, skewZX, skewZY,
                 centerBiasX, centerBiasY, centerBiasZ, tunnels, craters);
     }
@@ -251,6 +257,16 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             return new MaterialChoice(fallback.block.defaultBlockState(), true);
         }
         return new MaterialChoice(chooseWeighted(settings.materials, random, Blocks.STONE.defaultBlockState()), false);
+    }
+
+    private static MaterialChoice chooseAdditionalMaterial(List<AdditionalAsteroidType> additionalAsteroidTypes,
+            RandomSource random) {
+        for (AdditionalAsteroidType type : additionalAsteroidTypes) {
+            if (random.nextDouble() < type.chance) {
+                return new MaterialChoice(type.block.defaultBlockState(), false);
+            }
+        }
+        return null;
     }
 
     private static String biomeIdAt(WorldGenLevel level, ChunkGenerator chunkGenerator, BlockPos center) {
@@ -380,10 +396,15 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
     }
 
     private record Asteroid(int centerX, int centerY, int centerZ, int radius, int radiusX, int radiusY, int radiusZ,
-            long seed, BlockState material, boolean isIce, NormalNoise macroNoise, NormalNoise detailNoise,
+            long seed, BlockState material, boolean isIce, AsteroidShape shape, NormalNoise macroNoise, NormalNoise detailNoise,
             double skewXY, double skewXZ, double skewYX, double skewYZ, double skewZX, double skewZY,
             double centerBiasX, double centerBiasY, double centerBiasZ, Tunnel[] tunnels, Crater[] craters) {
         private double shapeDistance(double normalizedX, double normalizedY, double normalizedZ) {
+            double baseDistance = normalizedX * normalizedX + normalizedY * normalizedY + normalizedZ * normalizedZ;
+            if (shape != AsteroidShape.IRREGULAR) {
+                return baseDistance;
+            }
+
             double shearedX = normalizedX + normalizedY * skewXY + normalizedZ * skewXZ + centerBiasX;
             double shearedY = normalizedY + normalizedX * skewYX + normalizedZ * skewYZ + centerBiasY;
             double shearedZ = normalizedZ + normalizedX * skewZX + normalizedY * skewZY + centerBiasZ;
@@ -396,7 +417,6 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             double warpedX = shearedX + warpX;
             double warpedY = shearedY + warpY;
             double warpedZ = shearedZ + warpZ;
-            double baseDistance = normalizedX * normalizedX + normalizedY * normalizedY + normalizedZ * normalizedZ;
             double broadNoise = macroNoise.getValue(warpedX * 1.8D + 71.0D, warpedY * 1.8D + 79.0D,
                     warpedZ * 1.8D + 83.0D);
             double detailNoiseValue = detailNoise.getValue(warpedX * 5.0D + 89.0D, warpedY * 5.0D + 97.0D,
@@ -471,6 +491,9 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
     private record WeightedBlock(Block block, double weight) {
     }
 
+    private record AdditionalAsteroidType(Block block, double chance) {
+    }
+
     private record MaterialChoice(BlockState block, boolean biomeSpecific) {
     }
 
@@ -491,6 +514,20 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
     private record BiomeMaterial(String biomeId, Block block) {
     }
 
+    private enum AsteroidShape {
+        IRREGULAR,
+        ELLIPSOID,
+        SPHERE;
+
+        private static AsteroidShape fromConfig(String value) {
+            try {
+                return valueOf(value.trim().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                return IRREGULAR;
+            }
+        }
+    }
+
     private static final class Settings {
         private final double asteroidsPerChunk;
         private final int beltCenterY;
@@ -498,10 +535,12 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
         private final double beltConcentration;
         private final int minimumDiameter;
         private final int maximumDiameter;
+        private final AsteroidShape shape;
         private final double iceAsteroidChance;
         private final double caveAsteroidChance;
         private final boolean voidBelowAsteroids;
         private final List<WeightedBlock> materials;
+        private final List<AdditionalAsteroidType> additionalAsteroidTypes;
         private final List<BiomeMaterial> biomeMaterials;
         private final List<String> excludedBiomes;
         private final List<ResourceRule> resources;
@@ -509,8 +548,10 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
 
         private Settings(double asteroidsPerChunk, int beltCenterY, int beltHalfHeight, double beltConcentration,
                 int minimumDiameter,
-                int maximumDiameter, double iceAsteroidChance, double caveAsteroidChance, boolean voidBelowAsteroids,
-                List<WeightedBlock> materials, List<BiomeMaterial> biomeMaterials, List<String> excludedBiomes,
+                int maximumDiameter, AsteroidShape shape, double iceAsteroidChance, double caveAsteroidChance,
+                boolean voidBelowAsteroids, List<WeightedBlock> materials,
+                List<AdditionalAsteroidType> additionalAsteroidTypes, List<BiomeMaterial> biomeMaterials,
+                List<String> excludedBiomes,
                 List<ResourceRule> resources,
                 List<WeightedBlock> iceMaterials) {
             this.asteroidsPerChunk = asteroidsPerChunk;
@@ -519,10 +560,12 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             this.beltConcentration = beltConcentration;
             this.minimumDiameter = minimumDiameter;
             this.maximumDiameter = maximumDiameter;
+            this.shape = shape;
             this.iceAsteroidChance = iceAsteroidChance;
             this.caveAsteroidChance = caveAsteroidChance;
             this.voidBelowAsteroids = voidBelowAsteroids;
             this.materials = materials;
+            this.additionalAsteroidTypes = additionalAsteroidTypes;
             this.biomeMaterials = biomeMaterials;
             this.excludedBiomes = excludedBiomes;
             this.resources = resources;
@@ -535,9 +578,11 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
             int maximumDiameter = Math.max(config.minimumDiameter.get(), config.maximumDiameter.get());
             return new Settings(config.asteroidsPerChunk.get(), config.beltCenterY.get(), config.beltHalfHeight.get(),
                     config.beltConcentration.get(),
-                    minimumDiameter, maximumDiameter, config.iceAsteroidChance.get(),
+                    minimumDiameter, maximumDiameter, AsteroidShape.fromConfig(config.asteroidShape.get()),
+                    config.iceAsteroidChance.get(),
                     config.caveAsteroidChance.get(), config.voidBelowAsteroids.get(),
-                    parseWeighted(config.asteroidMaterials.get()), parseBiomeMaterials(config.biomeMaterials.get()),
+                    parseWeighted(config.asteroidMaterials.get()), parseAdditionalAsteroidTypes(config.additionalAsteroidTypes.get()),
+                    parseBiomeMaterials(config.biomeMaterials.get()),
                     parseBiomeIds(config.excludedBiomes.get()),
                     parseResources(config.asteroidResources.get()), parseWeighted(config.iceMaterials.get()));
         }
@@ -574,6 +619,31 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
                     double weight = Double.parseDouble(parts[1].trim());
                     if (block.isPresent() && block.get() != Blocks.AIR && weight > 0.0D) {
                         parsed.add(new WeightedBlock(block.get(), weight));
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Invalid entries are ignored so one bad config line does not stop world generation.
+                }
+            }
+            return parsed;
+        }
+
+        private static List<AdditionalAsteroidType> parseAdditionalAsteroidTypes(List<? extends String> entries) {
+            List<AdditionalAsteroidType> parsed = new ArrayList<>();
+            for (String entry : entries) {
+                String[] parts = entry.split("=", 2);
+                if (parts.length != 2) {
+                    continue;
+                }
+
+                ResourceLocation id = ResourceLocation.tryParse(parts[0].trim());
+                if (id == null) {
+                    continue;
+                }
+                Optional<Block> block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(id);
+                try {
+                    double chance = Double.parseDouble(parts[1].trim());
+                    if (block.isPresent() && block.get() != Blocks.AIR && chance > 0.0D && chance <= 1.0D) {
+                        parsed.add(new AdditionalAsteroidType(block.get(), chance));
                     }
                 } catch (NumberFormatException ignored) {
                     // Invalid entries are ignored so one bad config line does not stop world generation.

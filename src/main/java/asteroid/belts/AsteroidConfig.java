@@ -24,10 +24,12 @@ public final class AsteroidConfig {
         public final ModConfigSpec.DoubleValue beltConcentration;
         public final ModConfigSpec.IntValue minimumDiameter;
         public final ModConfigSpec.IntValue maximumDiameter;
+        public final ModConfigSpec.ConfigValue<String> asteroidShape;
         public final ModConfigSpec.DoubleValue iceAsteroidChance;
         public final ModConfigSpec.DoubleValue caveAsteroidChance;
         public final ModConfigSpec.BooleanValue voidBelowAsteroids;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidMaterials;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> additionalAsteroidTypes;
         public final ModConfigSpec.ConfigValue<List<? extends String>> biomeMaterials;
         public final ModConfigSpec.ConfigValue<List<? extends String>> excludedBiomes;
         public final ModConfigSpec.ConfigValue<List<? extends String>> asteroidResources;
@@ -56,6 +58,13 @@ public final class AsteroidConfig {
             maximumDiameter = builder
                     .comment("Maximum asteroid diameter in blocks.")
                     .defineInRange("maximum_diameter", 100, 2, 100);
+            asteroidShape = builder
+                    .comment("Asteroid shape: irregular, ellipsoid, or sphere.",
+                            "Irregular uses noise, skew, and craters; ellipsoid and sphere use smooth surfaces.")
+                    .define("asteroid_shape", "irregular", value -> value instanceof String shape
+                            && (shape.equalsIgnoreCase("irregular")
+                                    || shape.equalsIgnoreCase("ellipsoid")
+                                    || shape.equalsIgnoreCase("sphere")));
             iceAsteroidChance = builder
                     .comment("Chance that a generated asteroid is made entirely from an ice material.")
                     .defineInRange("ice_asteroid_chance", 0.025D, 0.0D, 1.0D);
@@ -74,6 +83,15 @@ public final class AsteroidConfig {
                             List.of("minecraft:stone=60", "minecraft:andesite=15", "minecraft:diorite=15", "minecraft:granite=10"),
                             () -> "minecraft:stone=1",
                             AsteroidConfig::isWeightedBlockEntry);
+            additionalAsteroidTypes = builder
+                    .comment("Additional asteroid types in the form block_id=chance.",
+                            "Each entry has its chance checked for every generated asteroid; the first selected entry supplies the material.",
+                            "These asteroids generate in every biome, including biomes listed in asteroid_excluded_biomes.",
+                            "Example template: # \"minecraft:obsidian=0.05\"")
+                    .defineList("additional_asteroid_types",
+                            List.of(),
+                            () -> "minecraft:obsidian=0.05",
+                            AsteroidConfig::isChanceBlockEntry);
             biomeMaterials = builder
                     .comment("Biome material overrides in the form biome_id=block_id.",
                             "Use one entry per line. The biome at the asteroid center selects the override, keeping each asteroid consistent.",
@@ -172,6 +190,20 @@ public final class AsteroidConfig {
 
         try {
             return Double.parseDouble(parts[1]) > 0.0D;
+        } catch (NumberFormatException exception) {
+            return false;
+        }
+    }
+
+    private static boolean isChanceBlockEntry(Object value) {
+        String[] parts = splitEntry(value);
+        if (parts == null) {
+            return false;
+        }
+
+        try {
+            double chance = Double.parseDouble(parts[1].trim());
+            return chance > 0.0D && chance <= 1.0D;
         } catch (NumberFormatException exception) {
             return false;
         }
