@@ -295,7 +295,7 @@ cave_asteroid_chance = 0.0
 void_below_asteroids = true
 ```
 
-When enabled, the mod clears non-air blocks below Y=300 as overworld chunks load. This is destructive to terrain in those chunks, so enable it before generating the area you want to clear.
+When enabled, the mod clears non-air blocks below Y=300 as overworld chunks load. This is destructive to terrain in those chunks, so enable it before generating the area you want to clear. The cleanup replaces complete chunk sections with empty sections and only scans the section that crosses Y=300, but world creation is still faster with this option disabled.
 
 ## Troubleshooting
 

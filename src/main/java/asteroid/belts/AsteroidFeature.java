@@ -20,6 +20,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.feature.Feature;
@@ -83,20 +84,58 @@ public final class AsteroidFeature extends Feature<NoneFeatureConfiguration> {
     }
 
     public static void clearBelowAsteroids(ChunkAccess chunk) {
+        int maximumY = Math.min(chunk.getMaxBuildHeight() - 1, VOID_FLOOR_Y - 1);
+        if (maximumY < chunk.getMinBuildHeight()) {
+            return;
+        }
+
+        int firstSection = Math.floorDiv(chunk.getMinBuildHeight(), 16);
+        int lastSection = Math.floorDiv(maximumY, 16);
+        for (int sectionY = firstSection; sectionY <= lastSection; sectionY++) {
+            int sectionIndex = sectionY - firstSection;
+            int sectionMinY = sectionY * 16;
+            int sectionMaxY = sectionMinY + 15;
+            if (sectionMaxY <= maximumY) {
+                clearBlockEntities(chunk, sectionMinY, sectionMaxY);
+                LevelChunkSection section = chunk.getSections()[sectionIndex];
+                if (!section.hasOnlyAir()) {
+                    chunk.getSections()[sectionIndex] = new LevelChunkSection(
+                            new net.minecraft.world.level.chunk.PalettedContainer<>(
+                                    Block.BLOCK_STATE_REGISTRY, Blocks.AIR.defaultBlockState(),
+                                    net.minecraft.world.level.chunk.PalettedContainer.Strategy.SECTION_STATES),
+                            section.getBiomes());
+                }
+                continue;
+            }
+
+            clearPartialSection(chunk, sectionMinY, maximumY);
+        }
+        chunk.setUnsaved(true);
+    }
+
+    private static void clearPartialSection(ChunkAccess chunk, int minimumY, int maximumY) {
         int chunkMinX = chunk.getPos().getMinBlockX();
         int chunkMaxX = chunk.getPos().getMaxBlockX();
         int chunkMinZ = chunk.getPos().getMinBlockZ();
         int chunkMaxZ = chunk.getPos().getMaxBlockZ();
-        int maximumY = Math.min(chunk.getMaxBuildHeight() - 1, VOID_FLOOR_Y - 1);
+        clearBlockEntities(chunk, minimumY, maximumY);
         BlockPos.MutableBlockPos position = new BlockPos.MutableBlockPos();
         for (int x = chunkMinX; x <= chunkMaxX; x++) {
-            for (int y = chunk.getMinBuildHeight(); y <= maximumY; y++) {
+            for (int y = minimumY; y <= maximumY; y++) {
                 for (int z = chunkMinZ; z <= chunkMaxZ; z++) {
                     position.set(x, y, z);
                     if (!chunk.getBlockState(position).isAir()) {
                         chunk.setBlockState(position, Blocks.AIR.defaultBlockState(), false);
                     }
                 }
+            }
+        }
+    }
+
+    private static void clearBlockEntities(ChunkAccess chunk, int minimumY, int maximumY) {
+        for (BlockPos position : List.copyOf(chunk.getBlockEntitiesPos())) {
+            if (position.getY() >= minimumY && position.getY() <= maximumY) {
+                chunk.removeBlockEntity(position);
             }
         }
     }
